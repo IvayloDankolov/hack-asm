@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Assembler for the Hack machine language (used in nand2tetris)",
   "main": "src/main.ts",
+  "bin": {
+    "hack-asm": "bin/hack-asm.js"
+  },
   "scripts": {
     "start": "ts-node src/main.ts",
     "test": "echo \"No tests yet\" && exit 1"
@@ -19,5 +22,11 @@
     "typescript"
   ],
   "author": "Ivaylo Dankolov",
-  "license": "GPL-3.0-or-later"
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "yargs": "^13.2.4"
+  },
+  "devDependencies": {
+    "@types/yargs": "^13.0.0"
+  }
 }
