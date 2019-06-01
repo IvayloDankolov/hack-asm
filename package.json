@@ -1,0 +1,23 @@
+{
+  "name": "hack-assembler",
+  "version": "1.0.0",
+  "description": "Assembler for the Hack machine language (used in nand2tetris)",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "ts-node src/main.ts",
+    "test": "echo \"No tests yet\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "TODO"
+  },
+  "keywords": [
+    "hack",
+    "assembler",
+    "machine-language",
+    "compiler",
+    "typescript"
+  ],
+  "author": "Ivaylo Dankolov",
+  "license": "GPL-3.0-or-later"
+}
