@@ -1,7 +1,7 @@
 import * as fs from 'mz/fs'
 import Tokenizr, { IToken } from "Tokenizr";
 import { Dict } from './tools';
-import { stripIndent, inlineLists } from 'common-tags';
+import { oneLine } from 'common-tags';
 
 const lexer = new Tokenizr();
 
@@ -75,7 +75,6 @@ export enum InstructionTypes {
 export enum Register {
     D = "D", A="A", M="M"
 }
-const allowedMnemonics = ["M", "D", "MD", "A", "AM", "AD", "AMD"];
 export enum DestinationFlags {
     A    = 0x4,
     D    = 0x2,
@@ -171,7 +170,7 @@ class Parser {
     constructor(
         public readonly file: string, 
         private readonly input: Tokenizr,
-        public debug: boolean,
+        public debug: boolean=false,
     ) {
 
     }
@@ -238,7 +237,7 @@ class Parser {
             throw new Error(`${errorPrefix(this.file)} '${kind}' expected, but reached end of file`);
         }
         if(curr.type !== kind) {
-            throw new Error(stripIndent`
+            throw new Error(oneLine`
             ${this.currentErrorPrefix()} '${kind}' expected.
                 Found '${curr.type}' instead.
             `);
@@ -301,6 +300,7 @@ class Parser {
     fatal(message: string) {
         const error = new Error(this.currentErrorPrefix() + ' ' + message);
         error.name = "fatal";
+        throw error;
     }
 
     get currentLine() {
@@ -340,7 +340,7 @@ export async function parse(file: string): Promise<Program> {
     const contents = await fs.readFile(file, "utf8");
 
     const tokeniser = tokenize(contents);
-    const p = new Parser(file, tokeniser, true);
+    const p = new Parser(file, tokeniser);
 
     const instructionList: Instruction[] = [];
     const symbolTable: Dict<number> = Object.assign({}, reservedSymbols);
@@ -372,8 +372,8 @@ export async function parse(file: string): Promise<Program> {
                         const num = p.expect('number');
                         const clipped = num & maxNumberLiteral;
                         if(num > maxNumberLiteral) {
-                            console.warn(stripIndent`
-                                ${warningPrefix(file, p.currentLine, p.currentCol)} value of literal 
+                            console.warn(oneLine`
+                                ${warningPrefix(file, p.currentLine, p.currentCol)} value of literal
                                 ${num} exceeds the maximum allowed ${maxNumberLiteral}.
                                 Will overflow to ${clipped} in the generated machine code.
                             `);
