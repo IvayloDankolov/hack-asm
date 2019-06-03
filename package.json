@@ -8,7 +8,9 @@
   },
   "scripts": {
     "start": "ts-node src/main.ts",
-    "test": "echo \"No tests yet\" && exit 1"
+    "build": "tsc",
+    "test": "echo \"No tests yet\" && exit 1",
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
