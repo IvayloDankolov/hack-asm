@@ -50,7 +50,7 @@ lexer.rule(/=/, ctx => ctx.accept("assignment"));
 lexer.rule(/;/, ctx => ctx.accept("jump"));
 lexer.rule(/[-+&|!]/, (ctx, match) => ctx.accept("operation", operationLiterals[match[0]]))
 
-lexer.rule(/[A-Za-z_][A-Za-z0-9_]*/, ctx => ctx.accept("identifier"));
+lexer.rule(/[A-Za-z_.$:][A-Za-z0-9_.$:]*/, ctx => ctx.accept("identifier"));
 lexer.rule(/[0-9]+/, (ctx, match) => {
     ctx.accept("number", parseInt(match[0]));
 });
