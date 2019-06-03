@@ -62,7 +62,7 @@ lexer.rule(/\/\/[^\r\n]*\r?\n/, ctx => ctx.accept("separator"));
 lexer.rule(/[ \t]+/, ctx => ctx.ignore());
 
 // Line breaks of non-empty lines we treat as separators
-lexer.rule(/\n/, ctx => ctx.accept("separator"));
+lexer.rule(/\r?\n/, ctx => ctx.accept("separator"));
 
 
 function tokenize(contents: string) {
