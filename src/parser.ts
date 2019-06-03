@@ -200,17 +200,17 @@ function flagsForOperation(p: Parser, desc: ConstantOperation|UnaryOperation|Bin
                     | OperationFlags.f;
 
                 case Operation.Subtract:
-                    return flagIf(OperationFlags.a, secondOperand === Register.M)
+                    return flagIf(OperationFlags.a, secondOperand === Register.M || firstOperand === Register.M)
                     | flagIf(OperationFlags.nx, firstOperand === Register.D)
                     | flagIf(OperationFlags.ny, secondOperand === Register.D)
                     | OperationFlags.f | OperationFlags.no;
 
                 case Operation.And:
                     // That's actually the default operation with nothing set, we just have to check for memory load.
-                    return flagIf(OperationFlags.a, secondOperand === Register.M);
+                    return flagIf(OperationFlags.a, secondOperand === Register.M || firstOperand === Register.M)
 
                 case Operation.Or:
-                    return flagIf(OperationFlags.a, secondOperand === Register.M)
+                    return flagIf(OperationFlags.a, secondOperand === Register.M || firstOperand === Register.M)
                     | OperationFlags.nx | OperationFlags.ny | OperationFlags.no;
                     
                 case Operation.Not:
