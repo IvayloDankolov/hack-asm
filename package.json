@@ -26,6 +26,7 @@
   "dependencies": {
     "common-tags": "^1.8.0",
     "mz": "^2.7.0",
+    "smart-buffer": "^4.0.2",
     "tokenizr": "^1.5.3",
     "yargs": "^13.2.4"
   },

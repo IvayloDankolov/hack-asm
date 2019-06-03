@@ -3,6 +3,7 @@
 import * as yargs from 'yargs';
 import { parse } from './parser';
 import { compile } from './compile';
+import { binaryTranslate } from './binary-translate';
 
 yargs
 .scriptName("hack-asm")
@@ -19,7 +20,9 @@ yargs
         const source = argv.source as string;
         try {
             const program = await compile(source);
-            console.log(program);
+            
+            const buf = binaryTranslate(program);
+            console.log(buf.toString("utf8"));
         } catch(e) {
             console.log(e);
             process.exit(1);
