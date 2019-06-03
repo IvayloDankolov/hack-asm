@@ -1,7 +1,5 @@
 // Using my own O(1) mult solution, because I'm an extremely humble person.
 
-
-
 // Multiplies R0 and R1 and stores the result in R2.
 // (R0, R1, R2 refer to RAM[0], RAM[1], and RAM[2], respectively.)
 
@@ -107,7 +105,7 @@
 // 
 //
 
-@1000000000
+
 // Unrolled version:
 
     // Setup

@@ -2,6 +2,7 @@
 
 import * as yargs from 'yargs';
 import { parse } from './parser';
+import { compile } from './compile';
 
 yargs
 .scriptName("hack-asm")
@@ -17,8 +18,8 @@ yargs
     handler: async (argv) => {
         const source = argv.source as string;
         try {
-            const program = await parse(source);
-            // console.log(program);
+            const program = await compile(source);
+            console.log(program);
         } catch(e) {
             console.log(e);
             process.exit(1);

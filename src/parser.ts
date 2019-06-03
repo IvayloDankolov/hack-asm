@@ -2,13 +2,14 @@ import * as fs from 'mz/fs'
 import Tokenizr, { IToken } from "Tokenizr";
 import { Dict } from './tools';
 import { oneLine } from 'common-tags';
+import { reservedSymbols, maxNumberLiteral } from './hackConfig';
 
 const lexer = new Tokenizr();
 
 enum Operation {
     Add,
     Subtract,
-    Negate,
+    Not,
     And,
     Or
 }
@@ -22,7 +23,7 @@ enum OperationKind {
 const operationLiterals: Dict<Operation> = {
     '+': Operation.Add,
     '-': Operation.Subtract,
-    '!': Operation.Negate,
+    '!': Operation.Not,
     '&': Operation.And,
     '|': Operation.Or,
 }
@@ -82,6 +83,18 @@ export enum DestinationFlags {
     None = 0x0
 }
 
+export enum OperationFlags {
+     a = 1 << 6,
+    zx = 1 << 5,
+    nx = 1 << 4,
+    zy = 1 << 3,
+    ny = 1 << 2,
+     f = 1 << 1,
+    no = 1 << 0,
+    
+    None = 0,
+}
+
 export enum JumpFlags {
     LessThan    = 0x4,
     Equal       = 0x2,
@@ -105,13 +118,118 @@ export type BinaryOperation = {
     secondOperand: Register | 1 | 0;
 }
 
+function flagIf<T extends number>(flag:T, include: boolean):T {
+    return (flag * (include as unknown as number)) as T;
+}
+
+function loadOnly(register: Register) {
+    return flagIf(OperationFlags.zy | OperationFlags.ny, register === Register.D) 
+    | flagIf(OperationFlags.zx | OperationFlags.nx, register !== Register.D) 
+    | flagIf(OperationFlags.a, register === Register.M);
+}
+
+function flagsForOperation(p: Parser, desc: ConstantOperation|UnaryOperation|BinaryOperation): OperationFlags {
+    switch(desc.kind) {
+        case OperationKind.Constant:
+            switch(desc.operand) {
+                case 0:
+                    return OperationFlags.zx | OperationFlags.zy | OperationFlags.f;
+                case 1: 
+                    return OperationFlags.zx | OperationFlags.nx 
+                         | OperationFlags.zy | OperationFlags.ny
+                         | OperationFlags.f  | OperationFlags.no;
+                default:
+                    return loadOnly(desc.operand);
+            }
+        case OperationKind.Unary: {
+            switch(desc.op) {
+                case Operation.Subtract:
+                    switch(desc.operand) {
+                        case 0:
+                            p.fatal("invalid operation -0.");
+                            return OperationFlags.None;
+                        case 1:
+                            return OperationFlags.zx | OperationFlags.nx | OperationFlags.zy | OperationFlags.f;
+                        default:
+                            return loadOnly(desc.operand) | OperationFlags.f | OperationFlags.no;
+                    }
+                case Operation.Not: {
+                    if(desc.operand === 0 || desc.operand === 1) {
+                        p.fatal("invalid operation, negate on constant is not supported");
+                        return OperationFlags.None;
+                    }
+                    return loadOnly(desc.operand) | OperationFlags.no;
+                }
+                default:
+                    p.fatal("internal error, non-unary operation somehow got recognised as unary.");
+                    return OperationFlags.None;
+            }
+        }
+        case OperationKind.Binary:
+            const {firstOperand, secondOperand, op} = desc;
+
+            if(firstOperand === 0 || firstOperand === 1) {
+                p.fatal("constants are not allowed as first operand in binary operations");
+                return OperationFlags.None;
+            }
+            if(secondOperand === 0 || secondOperand === 1) {
+                switch(op) {
+                    case Operation.Add:
+                        return loadOnly(firstOperand) 
+                        | OperationFlags.nx | OperationFlags.ny | OperationFlags.f | OperationFlags.no;
+                    case Operation.Subtract:
+                        return loadOnly(firstOperand) | OperationFlags.f;
+                    default:
+                        p.fatal("only + and - take a constant operand.");
+                        return OperationFlags.None;
+                }
+            }
+            if(firstOperand === Register.D && secondOperand === Register.D) {
+                p.fatal("Can only have the D register on one side of the operation.");
+                return OperationFlags.None;
+            }
+            if((firstOperand === Register.A && secondOperand === Register.M)
+            || (firstOperand === Register.M && secondOperand === Register.A)
+            ) {
+                p.fatal("Can only have a register from the A/M group on one side of the operation.");
+                return OperationFlags.None;
+            }
+            switch(op) {
+                case Operation.Add:
+                    return flagIf(OperationFlags.a, secondOperand === Register.M || firstOperand === Register.M)
+                    | OperationFlags.f;
+
+                case Operation.Subtract:
+                    return flagIf(OperationFlags.a, secondOperand === Register.M)
+                    | flagIf(OperationFlags.nx, firstOperand === Register.D)
+                    | flagIf(OperationFlags.ny, secondOperand === Register.D)
+                    | OperationFlags.f | OperationFlags.no;
+
+                case Operation.And:
+                    // That's actually the default operation with nothing set, we just have to check for memory load.
+                    return flagIf(OperationFlags.a, secondOperand === Register.M);
+
+                case Operation.Or:
+                    return flagIf(OperationFlags.a, secondOperand === Register.M)
+                    | OperationFlags.nx | OperationFlags.ny | OperationFlags.no;
+                    
+                case Operation.Not:
+                    p.fatal("negation is not a binary operation.");
+                    return OperationFlags.None;
+            }
+            
+    }
+    p.fatal("internal error: didn't handle an operation case");
+    return OperationFlags.None;
+}
+
 export type Instruction = {
     kind: InstructionTypes.A;
     rawValue: number;
 } | {
     kind: InstructionTypes.C;
     destination: DestinationFlags;
-    operation: ConstantOperation | UnaryOperation | BinaryOperation;
+    operation: OperationFlags;
     jump: JumpFlags;
 };
 
@@ -121,9 +239,7 @@ export interface Program {
     jumpTable: Dict<number>;
 }
 
-// Tables and limits
-
-const maxNumberLiteral = 0x7FFF;
+// Mnemonic tables
 
 const destinationMnemonics: Dict<DestinationFlags> = {
     M   : DestinationFlags.M,
@@ -144,13 +260,6 @@ const jumpMnemonics: Dict<JumpFlags> = {
     JLE: JumpFlags.LessThan | JumpFlags.Equal,
     JMP: JumpFlags.LessThan | JumpFlags.Equal | JumpFlags.GreaterThan
 };
-
-const reservedSymbols: Dict<number> = {
-     R0:  0,  R1:  1,  R2:  2,  R3:  3,
-     R4:  4,  R5:  5,  R6:  6,  R7:  7,
-     R8:  8,  R9:  9, R10: 10, R11: 11,
-    R12: 12, R13: 13, R14: 14, R15: 15,
-}
 
 function filePrefix(file: string, line?:number, col?:number) {
     return `${file}${line != null ? ':' + line: ''}${col != null ? ':' + col : ''} —`;
@@ -246,16 +355,18 @@ class Parser {
         if(allowedValues !== undefined) {
             if(allowedValues instanceof Function) {
                 if(!allowedValues(val)) {
-                    const message = errorMessageForValue != undefined ? errorMessageForValue(val)
-                        : `${this.currentErrorPrefix()} Value '${val}' is not allowed.`;
-                    throw new Error(message);
+                    const message = errorMessageForValue != undefined ? 
+                        errorMessageForValue(val)
+                        : `value '${val}' is not allowed.`;
+                    this.fatal(message);
                 }
             } else {
                 const allowedList = allowedValues instanceof Array ? allowedValues : [allowedValues];
                 if(!allowedList.some(allowed => val === allowed)) {
-                    const message = errorMessageForValue != undefined ? errorMessageForValue(val)
-                        : `${this.currentErrorPrefix()} Value '${val}' is not allowed.`;
-                    throw new Error(message);
+                    const message = errorMessageForValue != undefined ? 
+                        errorMessageForValue(val)
+                        : `value '${val}' is not allowed.`;
+                    this.fatal(message);
                 }
             } 
         }
@@ -415,10 +526,11 @@ export async function parse(file: string): Promise<Program> {
                     // Unary
                     () => {
                         const op = p.expect("operation", 
-                            op => op === Operation.Negate || op === Operation.Subtract,
-                            op => `Expected unary operation, but found ${Operation[op]}`
+                            [Operation.Not, Operation.Subtract],
+                            op => `expected unary operation, but found ${Operation[op]}`
                         );
                         const operand = parseRegisterOrBool(p);
+
                         operation = {
                             kind: OperationKind.Unary,
                             op,
@@ -429,7 +541,7 @@ export async function parse(file: string): Promise<Program> {
                     () => {
                         const firstOperand = parseRegisterOrBool(p);
                         const op = p.expect("operation", 
-                            op => op !== Operation.Negate,
+                            op => op !== Operation.Not,
                             op => `Expected binary operation, but found ${Operation[op]}`
                         );
                         const secondOperand = parseRegisterOrBool(p);
@@ -454,6 +566,8 @@ export async function parse(file: string): Promise<Program> {
                     p.fatal("internal error: could not select operation");
                     return;
                 }
+                
+                const operationFlags = flagsForOperation(p, operation);
 
                 let jump: JumpFlags = JumpFlags.None;
                 p.optional(() => {
@@ -468,7 +582,7 @@ export async function parse(file: string): Promise<Program> {
                 instructionList.push({
                     kind: InstructionTypes.C,
                     destination: dest,
-                    operation,
+                    operation: operationFlags,
                     jump
                 })
             },
