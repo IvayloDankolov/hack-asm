@@ -28,7 +28,7 @@
   "dependencies": {
     "cli-table": "^0.3.1",
     "common-tags": "^1.8.0",
-    "moment": "^2.24.0",
+    "moment": "^2.29.2",
     "mz": "^2.7.0",
     "smart-buffer": "^4.0.2",
     "tokenizr": "^1.5.3",
